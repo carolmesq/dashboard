@@ -1,0 +1,971 @@
+#Criar nova tabela a partir de outra
+
+CREATE TABLE mapbiomas.mb_teste2 AS
+SELECT *
+FROM mapbiomas.mb_uso_classif
+
+------------------------------------------------------------------------------------------------
+
+# ALTERAR TIPO DE DADO
+
+ALTER TABLE mapbiomas.mb_teste2
+ALTER COLUMN valor TYPE int
+
+ALTER TABLE mapbiomas.den_teste
+ALTER COLUMN municipio SET DATA TYPE VARCHAR(150)
+
+ou
+
+ALTER TABLE mapbiomas.den_teste
+ALTER COLUMN automovel SET DATA TYPE int,
+ALTER COLUMN bonde SET DATA TYPE int
+
+------------------------------------------------------------------------------------------------
+
+# CALCULAR O TAMANHO DO BANCO E DA TABELA
+
+SELECT pg_size_pretty(pg_database_size('nome_do_banco'));
+
+SELECT pg_size_pretty(pg_total_relation_size('mapbiomas.mb_teste2'));
+
+------------------------------------------------------------------------------------------------
+
+######## TABELA DENATRAN 
+
+ALTER TABLE mapbiomas.den_teste
+ALTER COLUMN automovel SET DATA TYPE int,
+ALTER COLUMN bonde SET DATA TYPE int,
+ALTER COLUMN caminhao SET DATA TYPE int,
+ALTER COLUMN caminhao_trator SET DATA TYPE int,
+ALTER COLUMN caminhonete SET DATA TYPE int,
+ALTER COLUMN camioneta SET DATA TYPE int,
+ALTER COLUMN chassi_plataf SET DATA TYPE int,
+ALTER COLUMN ciclomotor SET DATA TYPE int,
+ALTER COLUMN micro_onibus SET DATA TYPE int,
+ALTER COLUMN motocicleta SET DATA TYPE int,
+ALTER COLUMN motoneta SET DATA TYPE int,
+ALTER COLUMN onibus SET DATA TYPE int,
+ALTER COLUMN quadriciclo SET DATA TYPE int,
+ALTER COLUMN reboque SET DATA TYPE int,
+ALTER COLUMN semi_reboque SET DATA TYPE int,
+ALTER COLUMN side_car SET DATA TYPE int,
+ALTER COLUMN outros SET DATA TYPE int,
+ALTER COLUMN trator_estei SET DATA TYPE int,
+ALTER COLUMN trator_rodas SET DATA TYPE int,
+ALTER COLUMN triciclo SET DATA TYPE int,
+ALTER COLUMN utilitario SET DATA TYPE int
+
+------------------------------------------------------------------------------------------------
+
+# criação de tabela vazia
+
+CREATE TABLE emtu.shp1(
+	shape_id varchar,
+	shape_pt_lat varchar,
+	shape_pt_lon varchar,
+	shape_pt_sequence varchar
+);
+
+# importar csv
+
+COPY emtu.shp FROM 'C:/Users/Carol/Desktop/emtu/shapes.txt'
+DELIMITER','csv;
+
+### apagar linhas
+
+DELETE FROM emtu.shp
+WHERE shape_id = 'shape_id'
+
+# atualizar dado especifico
+
+UPDATE censo_tabelas.pessoa3_sp_cap_2010
+SET v006 = '0'
+WHERE v006 = 'X'
+
+# PROCURAR DADO ESPECIFICO
+
+SELECT * FROM censo_tabelas.pessoa3_sp_cap_2010
+WHERE v001 = '0'
+
+------------------------------------------------------------------------------------------------
+## CODIGO AULA
+
+ctrl+alt adiciona novo icone de cursor para editar mais de uma linha
+
+
+CREATE TABLE censo_setores.raca AS
+SELECT cs.nm_municip,
+	ct.v001::int AS pr_total,
+	ct.v002::int AS pr_branca,
+	ct.v003::int AS pr_preta,
+	ct.v004::int AS pr_amarela,
+	ct.v005::int AS pr_parda,
+	ct.v006::int AS pr_indigena,
+	cs.geometry
+	FROM censo_setores.setores_sp_2010 cs
+JOIN censo_tabelas.pessoa3_sp_cap_2010 ct ON cd_geocodi = cod_setor::text
+
+------------------------------------------------------------------------------------------------
+
+# Alterar coluna da tabela
+
+ALTER TABLE censo_tabelas.pessoas3_sp_cap_2010 RENAME COLUMN v001 TO pr_total;
+ALTER TABLE censo_tabelas.pessoas3_sp_cap_2010 RENAME COLUMN v002 TO pr_branca;
+ALTER TABLE censo_tabelas.pessoas3_sp_cap_2010 RENAME COLUMN v003 TO pr_preta;
+ALTER TABLE censo_tabelas.pessoas3_sp_cap_2010 RENAME COLUMN v004 TO pr_amarela;
+ALTER TABLE censo_tabelas.pessoas3_sp_cap_2010 RENAME COLUMN v005 TO pr_parda;
+ALTER TABLE censo_tabelas.pessoas3_sp_cap_2010 RENAME COLUMN v006 TO pr_indigena
+
+comentario  do SQL é "--" mesma coisa do python #
+
+------------------------------------------------------------------------------------------------
+
+## JOIN COM WITH
+
+CREATE TABLE censo_setores.setores_raca_sp_cap_2010 AS
+
+WITH raca AS
+	(
+	SELECT ct.cod_setor,
+		ct.pr_total::int,
+		ct.pr_branca::int,
+		ct.pr_preta::int,
+		ct.pr_amarela::int,
+		ct.pr_parda::int,
+		ct.pr_indigena::int
+		
+	FROM censo_tabelas.pessoas3_sp_cap_2010 ct
+	
+	),
+	
+	setores_sp AS
+	
+	(
+	SELECT
+		cs.cd_geocodi::bigint,
+		cs.nm_municip,
+		cs.geometry
+	FROM censo_setores.setores_sp_2010 cs
+	)
+-- cálculo da porcentagem das raças em relação ao total	
+SELECT r.cod_setor,
+		r.pr_total,
+		r.pr_branca,
+		r.pr_preta,
+		r.pr_amarela,
+		r.pr_parda,
+		r.pr_indigena,
+		(r.pr_preta + r.pr_parda) / r.pr_total::float AS pr_p_negro,
+		r.pr_branca / r.pr_total::float AS pr_p_branca,
+		r.pr_amarela / r.pr_total::float AS pr_p_amarela,
+		r.pr_indigena / r.pr_total::float AS pr_p_indigena,
+		ss.*
+	
+-- join realizado entre shape de setores e tabela Pessoas3
+	
+FROM raca r
+LEFT JOIN setores_sp ss ON  r.cod_setor = ss.cd_geocodi
+
+------------------------------------------------------------------------------------------------
+## CRIAÇÃO HEXAGONOS
+
+CREATE TABLE hexagonos.sao_paulo AS
+SELECT
+	mun.nome,
+	hex.geom
+FROM
+	ibge_limites.municipios_br mun
+	CROSS JOIN
+	ST_HexagonGrid(0.001, mun.geom) AS hex
+WHERE
+	nome = 'São Paulo'
+	AND
+	ST_Intersects(mun.geom, hex.geom)
+
+------------------------------------------------------------------------------------------------
+
+## INTERSECT ESPACIAL entre hexagonos e shape do censo
+
+--CREATE INDEX ON hexagonos.saopaulo USING GIST (geom);
+--CREATE INDEX ON censo_setores.setores_raca_sp_cap_2010 USING GIST (geometry);
+
+--CREATE TABLE hexagonos.pessoas_saopaulo AS
+SELECT
+	s.pr_total, -- o valor que vc quer herdar
+	s.pr_p_negro, -- o valor que vc quer herdar
+	s.pr_parda,
+	s.pr_preta,
+	h.geom
+FROM
+hexagonos.saopaulo h
+JOIN
+censo_setores.setores_raca_sp_cap_2010 s
+ON
+ST_Intersects(h.geom, ST_Transform(s.geometry, 4674)); -- colocar ST_Transform se precisa de transformação de projeção. Se não, colocar "ST_Intersects(h.geom, s.geometry)"
+
+
+------------------------------------------------------------------------------------------------
+
+## INTERSECT ESPACIAL entre hexagonos com dados do censo e shape do macrozoneamento
+
+--CREATE INDEX ON hexagonos.saopaulo USING GIST (geom);
+--CREATE INDEX ON censo_setores.setores_raca_sp_cap_2010 USING GIST (geometry);
+
+CREATE TABLE hexagonos.pessoas_saopaulo_macro AS
+SELECT
+	h.pr_total, -- o valor que vc quer herdar
+__________________________________________________________________________________________________
+
+SELECT ST_SRID(geom) FROM dados_sp.sub_bacias_est_sp LIMIT 1;
+	h.pr_p_negro, -- o valor que vc quer herdar
+	h.pr_parda,
+	h.pr_preta,
+	s.id AS macro_id,
+	s.mc_nome,
+	h.geom
+FROM
+	hexagonos.pessoas_saopaulo h
+LEFT JOIN
+	dados_sp.macro_area_sp s
+ON
+	ST_Intersects(h.geom, s.geom);
+
+------------------------------------------------------------------------------------------------
+
+## gerar setores da capital
+
+CREATE TABLE censo_setores.setores_sp_cap_2010 AS
+SELECT cs.* FROM censo_setores.setores_sp_2010 cs
+WHERE ST_Intersects(
+	(SELECT geom FROM ibge_limites.municipios_br
+	WHERE nome='São Paulo' ), ST_Transform(cs.geometry, 4326)
+	)
+AND cd_geocodm = '3550308'
+
+------------------------------------------------------------------------------------------------
+
+# FILTRO A PARTIR DE INFORMAÇÕES DA COLUNA
+
+SELECT cs.* FROM censo_setores.setores_sp_2010 cs
+WHERE cd_geocodm = '3550308'
+
+------------------------------------------------------------------------------------------------
+
+-- Adiciona a nova coluna
+ALTER TABLE hexagonos.pessoas_saopaulo ADD COLUMN hospitais_count INT;
+
+-- Atualiza a nova coluna com a contagem de pontos
+WITH ponto_contagem AS (
+	SELECT
+		h.geom,
+	COUNT(s.id) AS hospitais_count
+	FROM
+		hexagonos.pessoas_saopaulo h
+	LEFT JOIN
+		dados_sp.hospital s
+	ON
+		ST_Contains(h.geom, ST_Transform(s.geom, 4326))
+	GROUP BY
+		h.geom
+)
+UPDATE
+	hexagonos.pessoas_saopaulo h
+SET
+	hospitais_count = pc.hospitais_count
+FROM
+	ponto_contagem pc
+WHERE
+	h.geom = pc.geom;
+------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------
+
+ALTER TABLE censo_setores.setores_raca_sp_cap3_2010 RENAME TO setores_raca_sp_cap2_2010
+
+ALTER TABLE censo_setores.setores_raca_sp1_2010 RENAME COLUMN st_transform TO geom
+
+------------------------------------------------------------------------------------------------
+CREATE TABLE censo_setores.setores_raca_sp1_2010 AS
+
+WITH raca AS
+	(
+	SELECT ct.cod_setor,
+		ct.v001 AS pr_total,
+		ct.v002 AS pr_branca,
+		ct.v003 AS pr_preta,
+		ct.v004 AS pr_amarela,
+		ct.v005 AS pr_parda,
+		ct.v006 AS pr_indigena
+		
+	FROM censo_tabelas.pessoa3_sp1_2010 ct
+	WHERE ct.v001 != 0 
+	
+	),
+
+	setores_sp AS
+	
+	(
+	SELECT
+		cs.cd_geocodi::bigint,
+		cs.nm_municip,
+		ST_Transform(cs.geometry, 4326) AS geom
+	FROM censo_setores.setores_sp_2010 cs
+	)
+	
+-- cálculo da porcentagem das raças em relação ao total	
+
+	SELECT r.cod_setor,
+		r.pr_total,
+		r.pr_branca,
+		r.pr_preta,
+		r.pr_amarela,
+		r.pr_parda,
+		r.pr_indigena,
+		(r.pr_preta + r.pr_parda) / r.pr_total::float AS pr_p_negro,
+		r.pr_branca / r.pr_total::float AS pr_p_branca,
+		r.pr_amarela / r.pr_total::float AS pr_p_amarela,
+		r.pr_indigena / r.pr_total::float AS pr_p_indigena,
+		ss.*
+
+	
+FROM setores_sp ss
+LEFT JOIN raca r ON ss.cd_geocodi = r.cod_setor
+WHERE ss.nm_municip = 'SÃO PAULO'
+
+----------------------
+
+
+CREATE INDEX ON hexagonos.sao_paulo USING GIST (geom);
+CREATE INDEX ON censo_setores.setores_raca_sp1_2010 USING GIST (geom);
+
+----------------------
+
+CREATE TABLE hexagonos.sao_paulo AS
+SELECT
+	mun.nome,
+	hex.geom
+FROM
+	ibge_limites.municipios_br mun
+	CROSS JOIN
+	ST_HexagonGrid(0.001, mun.geom) AS hex
+WHERE
+	nome = 'São Paulo'
+	AND
+	ST_Intersects(mun.geom, hex.geom)
+
+----------------------
+
+
+CREATE TABLE hexagonos.pessoas3_sao_paulo AS
+SELECT
+	s.pr_total, -- o valor que vc quer herdar
+	s.pr_p_negro, -- o valor que vc quer herdar
+	s.pr_parda,
+	s.pr_preta,
+	h.geom
+FROM
+	hexagonos.sao_paulo h
+JOIN
+	censo_setores.setores_raca_sp1_2010 s
+ON
+	ST_Intersects(s.geom, ST_Centroid(h.geom))
+
+----------------------
+
+ALTER TABLE hexagonos.pessoa3_sao_paulo ADD COLUMN hospitais_count INT;
+
+WITH ponto_contagem AS (
+	SELECT
+		h.geom,
+	COUNT(s.id) AS hospitais_count
+	FROM
+		hexagonos.pessoa3_sao_paulo h
+	LEFT JOIN
+		dados_sp.hospital s
+	ON
+		ST_Intersects(h.geom, ST_Transform(s.geom, 4326))
+	GROUP BY
+		h.geom
+)
+UPDATE
+	hexagonos.pessoa3_sao_paulo h
+SET
+	hospitais_count = pc.hospitais_count
+FROM
+	ponto_contagem pc
+WHERE
+	h.geom = pc.geom;
+
+
+-------------------------------------------------------------------------------------------------------
+SELECT SUM(v002) AS pop_total, SUM(v005) AS renda_total
+FROM censo_tabelas.basico_sp2_2010
+WHERE nome_do_municipio = 'CAMPINAS';
+
+-------------------------------------------------------------------------------------------------------
+
+SELECT AVG(v002) AS pop_total, nome_do_municipio
+FROM censo_tabelas.basico_sp2_2010
+GROUP BY nome_do_municipio;
+
+-------------------------------------------------------------------------------------------------------
+
+SELECT SUM(v002) AS pop_total, nome_do_municipio
+FROM censo_tabelas.basico_sp2_2010
+GROUP BY nome_do_municipio;
+-------------------------------------------------------------------------------------------------------
+# Seleção de um unico municipio
+SELECT * FROM censo_tabelas.basico_sp_2010
+WHERE nome_do_municipio = 'FRANCA'
+
+-------------------------------------------------------------------------------------------------------
+# Somatoria da população por municipios
+SELECT SUM(v002), nome_do_municipio
+FROM censo_tabelas.basico_sp_2010
+GROUP BY nome_do_municipio;
+
+-------------------------------------------------------------------------------------------------------
+# União de tabelas do censo sp1 e sp2
+CREATE TABLE censo_tabelas.basico_sp_2010 AS
+SELECT * FROM censo_tabelas.basico_sp1_2010
+UNION ALL
+SELECT * FROM censo_tabelas.basico_sp2_2010
+
+-------------------------------------------------------------------------------------------------------
+# Join entre a tabela básico de sp com os setores censitários
+CREATE TABLE censo_setores.setores_sp_b_2010 AS
+SELECT * FROM censo_setores.setores_sp_2010
+LEFT JOIN censo_tabelas.basico_sp_2010 ON cd_geocodi::bigint = cod_setor
+
+-------------------------------------------------------------------------------------------------------
+WITH uf AS (
+SELECT * censo_tabelas.bascio_br_2010
+WHERE uf = 'rj'
+)
+
+SELECT uf.cd_mun, AVG(v001), SUM(v005)
+FROM uf
+GROUP BY cd_mun
+
+-------------------------------------------------------------------------------------------------------
+
+#Identificar o sistema de coordenada do arquivo
+SELECT ST_SRID(geom) FROM dados_sp.sub_bacias_est_sp LIMIT 1;
+
+-------------------------------------------------------------------------------------------------------
+
+SELECT dsubbc FROM dados_sp.sub_bacias_est_sp
+WHERE ST_Intersects((SELECT geom FROM ibge_limites.municipios_br WHERE cd_mun = '3502903'), ST_Transform(geom, 4326))
+
+-------------------------------------------------------------------------------------------------------
+SELECT DISTINCT dsubbc FROM dados_sp.sub_bacias_est_sp
+WHERE ST_Intersects((SELECT geom FROM ibge_limites.municipios_br WHERE cd_mun = '3502903'), ST_Transform(geom, 4326))
+
+-------------------------------------------------------------------------------------------------------
+
+# SELEÇÃO DE DADOS DEFINIDOS PELO COD MUN E MUNICIPIO
+SELECT
+	AVG(v001)::numeric(10,2) AS domic,
+	SUM(v002) AS popul,
+	AVG(v005)::numeric(10,2) AS renda,
+	nome_do_municipio,
+	cod_municipio
+FROM censo_tabelas.basico_sp_2010
+WHERE nome_do_municipio = 'CAMPINAS'
+GROUP BY nome_do_municipio, cod_municipio;
+
+-------------------------------------------------------------------------------------------------------
+
+# SELEÇÃO DE DADOS DEFINIDOS PELO COD MUN E MUNICIPIOS
+SELECT
+	AVG(v001)::numeric(10,2) AS domic_med,
+	SUM(v001) AS domic_tot,
+	SUM(v002) AS popul,
+	AVG(v005)::numeric(10,2) AS renda,
+	nome_do_municipio,
+	cod_municipio
+FROM censo_tabelas.basico_sp_2010
+WHERE nome_do_municipio IN ('ITUPEVA', 'JACAREÍ', 'SÃO CAETANO DO SUL')
+GROUP BY nome_do_municipio, cod_municipio;
+
+-------------------------------------------------------------------------------------------------------
+
+# SELEÇÃO DE DADOS DEFINIDOS PELO COD MUN E MUNICIPIOS com ordenação
+SELECT
+	AVG(v001)::numeric(10,2) AS domic_med,
+	SUM(v001) AS domic_tot,
+	SUM(v002) AS popul,
+	AVG(v005)::numeric(10,2) AS renda,
+	nome_do_municipio,
+	cod_municipio
+FROM censo_tabelas.basico_sp_2010
+WHERE nome_do_municipio LIKE 'SÃ%'
+GROUP BY nome_do_municipio, cod_municipio
+ORDER BY nome_do_municipio ASC;
+
+-------------------------------------------------------------------------------------------------------
+
+SELECT LEFT(cd_mun, 2), cd_mun, sigla
+FROM ibge_limites.municipios_br
+WHERE sigla = 'SP';
+
+-------------------------------------------
+# SELEÇÃO DO MUNICIPIO A PARTIR DOS 7 PRIMEIROS CODIGOS DO IBGE
+
+SELECT mun, cod_setor, v844
+FROM (
+    SELECT LEFT(cod_setor::varchar, 7) AS mun, cod_setor, v844
+    FROM censo_tabelas.entorno05_rj_2010
+) AS subquery
+WHERE mun = '3300100';
+
+---------------------------------------------
+
+SELECT mun, SUM(v001) AS v001, SUM(v002) AS v002, SUM(v003) AS v003
+FROM (
+    SELECT LEFT(cod_setor::varchar, 7) AS mun, v001, v002, v003
+    FROM censo_tabelas.pessoa10_rj_2010
+) AS subquery
+WHERE mun in ('3300100', '3304557')
+GROUP BY mun;
+
+---------------------------------------------
+
+ SELECT avg(v001)::numeric(10,2) AS domic_med,
+    sum(v001) AS domic_tot,
+    sum(v002) AS popul,
+    avg(v005)::numeric(10,2) AS renda,
+    nome_do_municipio,
+    cod_municipio
+   FROM censo_tabelas.basico_sp_2010
+  WHERE nome_do_municipio = ANY (ARRAY['ITUPEVA'::text, 'JACAREÍ'::text, 'SÃO CAETANO DO SUL'::text])
+  GROUP BY nome_do_municipio, cod_municipio;
+
+
+---------------------------------------------
+-- Consulta de dados da FINBRA usando SUBQUERY
+-- RECEITAS
+
+SELECT cod_ibge, SUM(valor) AS receitas
+FROM
+	(
+	SELECT cod_ibge, valor
+	FROM finbra.pa_receitas_2023
+	)
+AS subquery
+WHERE cod_ibge in ('1502152')
+GROUP BY cod_ibge;
+
+-- DESPESAS
+
+SELECT cod_ibge, SUM(valor) AS desp
+FROM
+	(
+	SELECT cod_ibge, valor
+	FROM finbra.pa_despesas_2023
+	)
+AS subquery
+WHERE cod_ibge in ('1502152')
+GROUP BY cod_ibge;
+
+---------------------------------------------
+-- Consulta de dados da FINBRA usando WITH
+-- RECEITAS
+
+WITH receitas AS
+	(
+    SELECT cod_ibge, valor
+    FROM finbra.pa_receitas_2023
+	)
+SELECT cod_ibge, SUM(valor) AS valor_rec
+FROM receitas
+WHERE cod_ibge IN ('1502152')
+GROUP BY cod_ibge;
+
+-- DESPESAS
+
+WITH despesas AS
+	(
+    SELECT cod_ibge, valor
+    FROM finbra.pa_despesas_2023
+	)
+SELECT cod_ibge, SUM(valor) AS valor_desp
+FROM despesas
+WHERE cod_ibge IN ('1502152')
+GROUP BY cod_ibge;
+
+-- DESPESAS 2022 E 2023
+
+WITH despesas23 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp23
+    FROM finbra.pa_despesas_2023
+	WHERE cod_ibge IN ('1502152')
+	GROUP BY cod_ibge
+	),
+	
+despesas22 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp22
+    FROM finbra.pa_despesas_2022 vd
+	WHERE cod_ibge IN ('1502152')
+	GROUP BY cod_ibge
+	)
+
+SELECT 
+	vt.cod_ibge, 
+	vt.valor_desp23 AS desp23,
+	vd.valor_desp22 AS desp22
+	
+FROM despesas23 vt
+JOIN despesas22 vd ON vt.cod_ibge = vd.cod_ibge;
+
+
+-- DESPESAS 2020, 2021, 2022 E 2023
+
+WITH despesas20 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp20
+    FROM finbra.sp_despesas_2020
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	),
+	
+despesas21 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp21
+    FROM finbra.sp_despesas_2021
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	),
+
+despesas22 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp22
+    FROM finbra.sp_despesas_2022 vd
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	),
+	
+despesas23 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp23
+    FROM finbra.sp_despesas_2023 vt
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	)
+	
+SELECT 
+	vz.cod_ibge, 
+	vz.valor_desp20 AS desp20,
+	vu.valor_desp21 AS desp21,
+	vd.valor_desp22 AS desp22,
+	vt.valor_desp23 AS desp23
+	
+FROM despesas20 vz
+JOIN despesas21 vu ON vz.cod_ibge = vu.cod_ibge
+JOIN despesas22 vd ON vz.cod_ibge = vd.cod_ibge
+JOIN despesas23 vt ON vz.cod_ibge = vt.cod_ibge;
+
+
+-- RECEITAS 2020, 2021, 2022 E 2023
+
+
+WITH receitas20 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit20
+    FROM finbra.pa_receitas_2020 vz
+	WHERE cod_ibge IN ('1502152')
+	GROUP BY cod_ibge
+	),
+	
+receitas21 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit21
+    FROM finbra.pa_receitas_2021 vu
+	WHERE cod_ibge IN ('1502152')
+	GROUP BY cod_ibge
+	),
+
+receitas22 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit22
+    FROM finbra.pa_receitas_2022 vd
+	WHERE cod_ibge IN ('1502152')
+	GROUP BY cod_ibge
+	),
+	
+receitas23 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit23
+    FROM finbra.pa_receitas_2023 vt
+	WHERE cod_ibge IN ('1502152')
+	GROUP BY cod_ibge
+	)
+	
+SELECT 
+	vz.cod_ibge, 
+	vz.valor_receit20 AS rec20,
+	vu.valor_receit21 AS rec21,
+	vd.valor_receit22 AS rec22,
+	vt.valor_receit23 AS rec23
+	
+FROM receitas20 vz
+JOIN receitas21 vu ON vz.cod_ibge = vu.cod_ibge
+JOIN receitas22 vd ON vz.cod_ibge = vd.cod_ibge
+JOIN receitas23 vt ON vz.cod_ibge = vt.cod_ibge;
+
+-- RECEITAS COM FILTRO NA COLUNA 2020, 2021, 2022 E 2023
+
+
+WITH receitas20 AS
+	(
+    SELECT 
+	cod_ibge, 
+	SUM(valor) AS valor_rec20,
+	coluna
+    FROM finbra.pa_receitas_2020
+	WHERE cod_ibge IN ('1502152')
+GROUP BY cod_ibge, coluna
+	),
+	
+receitas21 AS
+	(
+    SELECT 
+	cod_ibge, 
+	SUM(valor) AS valor_rec21,
+	coluna
+    FROM finbra.pa_receitas_2021
+	WHERE cod_ibge IN ('1502152')
+GROUP BY cod_ibge, coluna
+	),
+
+receitas22 AS
+	(
+    SELECT 
+	cod_ibge, 
+	SUM(valor) AS valor_rec22,
+	coluna
+    FROM finbra.pa_receitas_2022
+	WHERE cod_ibge IN ('1502152')
+GROUP BY cod_ibge, coluna
+	),
+
+receitas23 AS
+	(
+    SELECT 
+	cod_ibge, 
+	SUM(valor) AS valor_rec23,
+	coluna
+    FROM finbra.pa_receitas_2023
+	WHERE cod_ibge IN ('1502152')
+GROUP BY cod_ibge, coluna
+	)
+	
+SELECT vz.cod_ibge,
+	vz.coluna,
+	vz.valor_rec20 AS rec20,
+	vu.valor_rec21 AS rec21,
+	vd.valor_rec22 AS rec22,
+	vt.valor_rec23 AS rec23
+	
+FROM receitas20 vz
+JOIN receitas21 vu ON vz.cod_ibge = vu.cod_ibge AND vz.coluna = vu.coluna
+JOIN receitas22 vd ON vz.cod_ibge = vd.cod_ibge AND vz.coluna = vd.coluna
+JOIN receitas23 vt ON vz.cod_ibge = vt.cod_ibge AND vz.coluna = vt.coluna;
+
+-- RECEITAS TOTAIS COM FILTRO NA COLUNA 2020, 2021, 2022 E 2023 SAO PAULO
+
+WITH receitas20 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit20
+    FROM finbra.sp_receitas_2020 vz
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	),
+	
+receitas21 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit21
+    FROM finbra.sp_receitas_2021 vu
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	),
+
+receitas22 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit22
+    FROM finbra.sp_receitas_2022 vd
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	),
+	
+receitas23 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_receit23
+    FROM finbra.sp_receitas_2023 vt
+	WHERE cod_ibge IN ('3524006', '3524402', '3548807')
+	GROUP BY cod_ibge
+	)
+	
+SELECT 
+	vz.cod_ibge, 
+	vz.valor_receit20 AS rec20,
+	vu.valor_receit21 AS rec21,
+	vd.valor_receit22 AS rec22,
+	vt.valor_receit23 AS rec23
+	
+FROM receitas20 vz
+JOIN receitas21 vu ON vz.cod_ibge = vu.cod_ibge
+JOIN receitas22 vd ON vz.cod_ibge = vd.cod_ibge
+JOIN receitas23 vt ON vz.cod_ibge = vt.cod_ibge;
+
+
+-----------
+
+Despesas sp
+
+WITH despesas20 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp20
+    FROM finbra.sp_despesas_2020
+	WHERE cod_ibge IN ('3524006')
+	GROUP BY cod_ibge
+	),
+	
+--despesas21 AS
+--	(
+--    SELECT
+--        cod_ibge,
+--        SUM(valor) AS valor_desp21
+--    FROM finbra.sp_despesas_2021
+--	WHERE cod_ibge IN ('3524006')
+--	GROUP BY cod_ibge
+--	),
+
+despesas22 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp22
+    FROM finbra.sp_despesas_2022 vd
+	WHERE cod_ibge IN ('3524006')
+	GROUP BY cod_ibge
+	),
+	
+despesas23 AS
+	(
+    SELECT
+        cod_ibge,
+        SUM(valor) AS valor_desp23
+    FROM finbra.sp_despesas_2023 vt
+	WHERE cod_ibge IN ('3524006')
+	GROUP BY cod_ibge
+	)
+	
+SELECT 
+	vz.cod_ibge, 
+	vz.valor_desp20 AS desp20,
+--	vu.valor_desp21 AS desp21,
+	vd.valor_desp22 AS desp22,
+	vt.valor_desp23 AS desp23
+	
+FROM despesas20 vz
+--JOIN despesas21 vu ON vz.cod_ibge = vu.cod_ibge
+JOIN despesas22 vd ON vz.cod_ibge = vd.cod_ibge
+JOIN despesas23 vt ON vz.cod_ibge = vt.cod_ibge;
+
+----------------------------------------------------------------------------
+
+CREATE TABLE censo.basico_2010 AS
+SELECT * FROM censo.basico_ac_2010
+UNION ALL
+SELECT * FROM censo.basico_al_2010
+UNION ALL
+SELECT * FROM censo.basico_am_2010
+UNION ALL
+SELECT * FROM censo.basico_ap_2010
+UNION ALL
+SELECT * FROM censo.basico_ba_2010
+UNION ALL
+SELECT * FROM censo.basico_ce_2010
+UNION ALL
+SELECT * FROM censo.basico_df_2010
+UNION ALL
+SELECT * FROM censo.basico_es_2010
+UNION ALL
+SELECT * FROM censo.basico_go_2010
+UNION ALL
+SELECT * FROM censo.basico_ma_2010
+UNION ALL
+SELECT * FROM censo.basico_mg_2010
+UNION ALL
+SELECT * FROM censo.basico_ms_2010
+UNION ALL
+SELECT * FROM censo.basico_mt_2010
+UNION ALL
+SELECT * FROM censo.basico_pa_2010
+UNION ALL
+SELECT * FROM censo.basico_pb_2010
+UNION ALL
+SELECT * FROM censo.basico_pe_2010
+UNION ALL
+SELECT * FROM censo.basico_pi_2010
+UNION ALL
+SELECT * FROM censo.basico_pr_2010
+UNION ALL
+SELECT * FROM censo.basico_rj_2010
+UNION ALL
+SELECT * FROM censo.basico_rn_2010
+UNION ALL
+SELECT * FROM censo.basico_ro_2010
+UNION ALL
+SELECT * FROM censo.basico_rr_2010
+UNION ALL
+SELECT * FROM censo.basico_rs_2010
+UNION ALL
+SELECT * FROM censo.basico_sc_2010
+UNION ALL
+SELECT * FROM censo.basico_se_2010
+UNION ALL
+SELECT * FROM censo.basico_sp1_2010
+UNION ALL
+SELECT * FROM censo.basico_sp2_2010
+UNION ALL
+SELECT * FROM censo.basico_to_2010
+
+---------------------------------------------------------------------------------
+
+CREATE TABLE t_censo_tabelas.entorno01_2010 AS
+SELECT * FROM censo.entorno01_2010;
