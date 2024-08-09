@@ -6,11 +6,11 @@ import psycopg2
 @st.cache_resource
 def init_connection():
     return psycopg2.connect(
-        user=st.secrets["postgres"]["postgres"],           # Use "user" as the key
-        password=st.secrets["postgres"]["123456"],   # Use "password" as the key
-        host=st.secrets["postgres"]["localhost"],           # Use "host" as the key
-        port=st.secrets["postgres"]["5432"],           # Use "port" as the key
-        dbname=st.secrets["postgres"]["Polo"]        # Use "dbname" as the key
+        host=st.secrets["host"],
+        port=st.secrets["port"],
+        database=st.secrets["database"],
+        user=st.secrets["user"],
+        password=st.secrets["password"]
     )
 
 conn = init_connection()
@@ -23,7 +23,7 @@ def run_query(query):
         return cur.fetchall()
 
 # Run the query to fetch data from the PostgreSQL database
-rows = run_query("SELECT nome_munic, pop_2010, pop_2022 FROM t_analises.dados_gerais LIMIT 20")
+rows = run_query("SELECT nome_munic, pop_2010::bigint, pop_2022 FROM t_analises.dados_gerais LIMIT 20")
 
 # Convert the results into a DataFrame and set the column names
 data = pd.DataFrame(rows, columns=['nome_munic', 'pop_2010', 'pop_2022'])
